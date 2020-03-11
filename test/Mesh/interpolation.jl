@@ -2,17 +2,12 @@ using Test, MPI
 import GaussQuadrature
 using CLIMA
 using CLIMA.ConfigTypes
+using CLIMA.DGmethods
+using CLIMA.DGmethods.NumericalFluxes
 using CLIMA.Mesh.Topologies
 using CLIMA.Mesh.Grids
 using CLIMA.Mesh.Geometry
 using CLIMA.Mesh.Interpolation
-using StaticArrays
-using GPUifyLoops
-
-using CLIMA.VariableTemplates
-#------------------------------------------------
-using CLIMA.DGmethods
-using CLIMA.DGmethods.NumericalFluxes
 using CLIMA.MPIStateArrays
 using CLIMA.ODESolvers
 using CLIMA.GenericCallbacks
@@ -21,22 +16,16 @@ using CLIMA.VariableTemplates
 using CLIMA.MoistThermodynamics
 using CLIMA.PlanetParameters
 using CLIMA.TicToc
+
+using GPUifyLoops
 using LinearAlgebra
 using StaticArrays
-using Logging, Printf, Dates
-using CLIMA.VTK
-
-using CLIMA.Atmos: vars_state, vars_aux
+using Statistics
 
 using CLIMA.Parameters
 const clima_dir = dirname(pathof(CLIMA))
 include(joinpath(clima_dir, "..", "Parameters", "Parameters.jl"))
 
-using Random
-using Statistics
-const seed = MersenneTwister(0)
-
-const ArrayType = CLIMA.array_type()
 #-------------------------------------
 function Initialize_Brick_Interpolation_Test!(
     bl,
@@ -87,7 +76,6 @@ end
 function run_brick_interpolation_test()
     CLIMA.init()
     for FT in (Float32, Float64)
-        ArrayType = CLIMA.array_type()
         DA = CLIMA.array_type()
         mpicomm = MPI.COMM_WORLD
         root = 0
@@ -173,7 +161,7 @@ function run_brick_interpolation_test()
         intrp_brck = InterpolationBrick(grid, xbnd, x1g, x2g, x3g)             # sets up the interpolation structure
         iv = DA(Array{FT}(undef, intrp_brck.Npl, nvars))                       # allocating space for the interpolation variable
         interpolate_local!(intrp_brck, Q.data, iv)                             # interpolation
-        svi = write_interpolated_data(intrp_brck, iv, varnames, filename)      # write interpolation data to file
+        varvals = write_interpolated_data(intrp_brck, iv, varnames, filename)      # write interpolation data to file
         #------------------------------
 
         err_inf_dom = zeros(FT, nvars)
@@ -199,7 +187,7 @@ function run_brick_interpolation_test()
 
             for vari in 1:nvars
                 err_inf_dom[vari] =
-                    maximum(abs.(svi[:, :, :, vari] .- fex[:, :, :]))
+                    maximum(abs.(varvals[varnames[vari]] .- fex[:, :, :]))
             end
         end
 
@@ -335,7 +323,7 @@ function run_cubed_sphere_interpolation_test()
         ) # sets up the interpolation structure
         iv = DA(Array{FT}(undef, intrp_cs.Npl, nvars))                  # allocatind space for the interpolation variable
         interpolate_local!(intrp_cs, Q.data, iv, project = projectv)           # interpolation
-        svi = write_interpolated_data(intrp_cs, iv, varnames, filename) # write interpolated data to file
+        varvals = write_interpolated_data(intrp_cs, iv, varnames, filename) # write interpolated data to file
         #----------------------------------------------------------
         # Testing
         err_inf_dom = zeros(FT, nvars)
@@ -385,7 +373,7 @@ function run_cubed_sphere_interpolation_test()
 
             for vari in 1:nvars
                 err_inf_dom[vari] =
-                    maximum(abs.(svi[:, :, :, vari] .- fex[:, :, :, vari]))
+                    maximum(abs.(varvals[varnames[vari]] .- fex[:, :, :, vari]))
             end
         end
 

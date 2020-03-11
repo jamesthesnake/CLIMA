@@ -23,6 +23,7 @@ using ..DGmethods:
 using ..Mesh.Interpolation
 using ..MPIStateArrays
 using ..VariableTemplates
+using ..Writers
 
 Base.@kwdef mutable struct Diagnostic_Settings
     mpicomm::MPI.Comm = MPI.COMM_WORLD
@@ -67,6 +68,7 @@ mutable struct DiagnosticsGroup
     collect::Function
     interval::Int
     out_prefix::String
+    writer::AbstractWriter
     interpol::Union{Nothing, InterpolationTopology}
     project::Bool
     step::Int
@@ -78,6 +80,7 @@ mutable struct DiagnosticsGroup
         collect,
         interval,
         out_prefix,
+        writer,
         interpol,
         project,
     ) = new(
@@ -87,6 +90,7 @@ mutable struct DiagnosticsGroup
         collect,
         interval,
         out_prefix,
+        writer,
         interpol,
         project,
         0,
@@ -123,6 +127,7 @@ TODO: this will be refactored soon.
 function setup_atmos_default_diagnostics(
     interval::Int,
     out_prefix::String;
+    writer = JLD2Writer(),
     interpol = nothing,
     project = true,
 )
@@ -133,6 +138,7 @@ function setup_atmos_default_diagnostics(
         Diagnostics.atmos_default_collect,
         interval,
         out_prefix,
+        writer,
         interpol,
         project,
     )
@@ -154,6 +160,7 @@ TODO: this will be refactored soon.
 function setup_dump_state_and_aux_diagnostics(
     interval::Int,
     out_prefix::String;
+    writer = NetCDFWriter(),
     interpol = nothing,
     project = true,
 )
@@ -164,6 +171,7 @@ function setup_dump_state_and_aux_diagnostics(
         Diagnostics.dump_state_and_aux_collect,
         interval,
         out_prefix,
+        writer,
         interpol,
         project,
     )

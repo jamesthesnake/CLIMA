@@ -1,17 +1,19 @@
 module Interpolation
+
 using CLIMA
-using MPI
-import GaussQuadrature
 using CLIMA.Mesh.Topologies
 using CLIMA.Mesh.Grids
 using CLIMA.Mesh.Geometry
 using CLIMA.Mesh.Elements
 using CLIMA.Writers
-using LinearAlgebra
-using StaticArrays
-#-------------------
+
+import GaussQuadrature
 using CUDAnative
 using KernelAbstractions: CPU, CUDA
+using LinearAlgebra
+using MPI
+using OrderedCollections
+using StaticArrays
 
 export InterpolationBrick,
     write_interpolated_data,
@@ -1557,33 +1559,31 @@ function write_interpolated_data(
         )
     end
 
+    varvals = OrderedDict()
     if pid == 0
-        svi = Array{FT}(undef, nrad, nlat, nlong, nvars)
-        radi = intrp_cs.radi_all
-        lati = intrp_cs.lati_all
+        radi  = intrp_cs.radi_all
+        lati  = intrp_cs.lati_all
         longi = intrp_cs.longi_all
 
-        for i in 1:length(radi)
-            for vari in 1:nvars
-                svi[radi[i], lati[i], longi[i], vari] = v_all[i, vari]
+        for vari in 1:nvars
+            vals = Array{FT}(undef, nrad, nlat, nlong)
+            for i in 1:length(radi)
+                vals[radi[i], lati[i], longi[i]] = v_all[i, vari]
             end
+            varvals[varnames[vari]] = vals
         end
         write_data(
+            NetCDFWriter(),
             filename,
-            ("rad", "lat", "long"),
-            (nrad, nlat, nlong),
-            (
-                Array(intrp_cs.rad_grd),
-                Array(intrp_cs.lat_grd),
-                Array(intrp_cs.long_grd),
+            OrderedDict(
+                "rad" => Array(intrp_cs.rad_grd),
+                "lat" => Array(intrp_cs.lat_grd),
+                "long" => Array(intrp_cs.long_grd),
             ),
-            varnames,
-            svi,
+            varvals,
         )
-    else
-        svi = Array{FT}(undef, 0, 0, 0, nvars)
     end
-    return svi
+    return varvals
 end
 #--------------------------------------------------------
 """
@@ -1597,7 +1597,7 @@ This interpolation function gathers interpolated data onto process # 0 and write
  - `varnames` Tuple of Interpolated variable name strings
  - `filename` Filename of the NetCDF file to be written
 # output
- - `svi` full interpolated variables on process # 0
+ - `varvals` full interpolated variables on process # 0
 """
 function write_interpolated_data(
     intrp_brck::InterpolationBrick{FT},
@@ -1641,34 +1641,31 @@ function write_interpolated_data(
         )
     end
     #----------------------
+    varvals = OrderedDict()
     if pid == 0
-        #------------------------
-        svi = Array{FT}(undef, nx1, nx2, nx3, nvars)
         x1i = intrp_brck.x1i_all
         x2i = intrp_brck.x2i_all
         x3i = intrp_brck.x3i_all
 
         for vari in 1:nvars
+            vals = Array{FT}(undef, nx1, nx2, nx3)
             for i in 1:length(x1i)
-                svi[x1i[i], x2i[i], x3i[i], vari] = v_all[i, vari]
+                vals[x1i[i], x2i[i], x3i[i]] = v_all[i, vari]
             end
+            varvals[varnames[vari]] = vals
         end
         write_data(
+            NetCDFWriter(),
             filename,
-            ("x1", "x2", "x3"),
-            (nx1, nx2, nx3),
-            (
-                Array(intrp_brck.x1g),
-                Array(intrp_brck.x2g),
-                Array(intrp_brck.x3g),
+            OrderedDict(
+                "x1" => Array(intrp_brck.x1g),
+                "x2" => Array(intrp_brck.x2g),
+                "x3" => Array(intrp_brck.x3g),
             ),
-            varnames,
-            svi,
+            varvals,
         )
-    else
-        svi = Array{FT}(undef, 0, 0, 0, 0)
     end
-    return svi
+    return varvals
 end
 #--------------------------------------------------------
 end # module interploation
