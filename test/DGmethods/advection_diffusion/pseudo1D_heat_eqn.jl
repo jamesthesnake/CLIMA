@@ -6,14 +6,12 @@ using CLIMA.Mesh.Grids
 using CLIMA.DGmethods
 using CLIMA.DGmethods.NumericalFluxes
 using CLIMA.MPIStateArrays
-using CLIMA.LowStorageRungeKuttaMethod
+using CLIMA.ODESolvers
 using LinearAlgebra
 using Printf
 using Dates
 using CLIMA.GenericCallbacks: EveryXWallTimeSeconds, EveryXSimulationSteps
-using CLIMA.ODESolvers: solve!, gettime
 using CLIMA.VTK: writevtk, writepvtu
-using CLIMA.Mesh.Grids: EveryDirection, HorizontalDirection, VerticalDirection
 import CLIMA.DGmethods.NumericalFluxes: normal_boundary_flux_diffusive!
 
 if !@isdefined integration_testing
@@ -48,8 +46,8 @@ Dirichlet_data!(P::HeatEqn, x...) = initial_condition!(P, x...)
 function normal_boundary_flux_diffusive!(::CentralNumericalFluxDiffusive,
                                          ::AdvectionDiffusion{dim, HeatEqn{nd, κ, A}},
                                          fluxᵀn::Vars{S}, n⁻,
-                                         state⁻, diff⁻, aux⁻,
-                                         state⁺, diff⁺, aux⁺,
+                                         state⁻, diff⁻, hyperdiff⁻, aux⁻,
+                                         state⁺, diff⁺, hyperdiff⁺, aux⁺,
                                          bctype, t,
                                          _...) where {S, dim, nd, κ, A}
 

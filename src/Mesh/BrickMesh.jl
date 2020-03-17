@@ -264,7 +264,7 @@ function brickmesh(x, periodic; part=1, numparts=1,
   if boundary isa Matrix
     boundary = tuple(mapslices(x -> tuple(x...), boundary, dims=1)...)
   end
-  
+
   @assert length(x) == length(periodic)
   @assert length(x) >= 1
   @assert 1 <= part <= numparts
@@ -533,7 +533,7 @@ function partition(comm::MPI.Comm, elemtovert, elemtocoord, elemtobndy,
 
   if !isempty(globord)
     globord = globord[sendorder]
-  end 
+  end
 
   newelemtovert = []
   newelemtocoord = []
@@ -567,7 +567,7 @@ function partition(comm::MPI.Comm, elemtovert, elemtocoord, elemtobndy,
       newelemtobndy = netb
       newelemtofaceconnect = netfc
       if !isempty(globord)
-        newglobord = netglobord 
+        newglobord = netglobord
       end
     end
   end
@@ -1025,12 +1025,12 @@ This function takes in a polynomial order `N` and parts of a mesh (as returned
 from `connectmesh`) and returns index mappings for the element surface flux
 computation.  The returned `Tuple` contains:
 
- - `vmapM` an array of linear indices into the volume degrees of freedom where
-   `vmapM[:,f,e]` are the degrees of freedom indices for face `f` of element
+ - `vmap⁻` an array of linear indices into the volume degrees of freedom where
+   `vmap⁻[:,f,e]` are the degrees of freedom indices for face `f` of element
     `e`.
 
- - `vmapP` an array of linear indices into the volume degrees of freedom where
-   `vmapP[:,f,e]` are the degrees of freedom indices for the face neighboring
+ - `vmap⁺` an array of linear indices into the volume degrees of freedom where
+   `vmap⁺[:,f,e]` are the degrees of freedom indices for the face neighboring
    face `f` of element `e`.
 """
 function mappings(N, elemtoelem, elemtoface, elemtoordr)
@@ -1045,8 +1045,8 @@ function mappings(N, elemtoelem, elemtoface, elemtoordr)
   fmask = hcat((p[ntuple(j->(j==fd(f)) ? (fe(f):fe(f)) : (:), d)...][:]
                 for f=1:nface)...)
 
-  vmapM = similar(elemtoelem, Nfp, nface, nelem)
-  vmapP = similar(elemtoelem, Nfp, nface, nelem)
+  vmap⁻ = similar(elemtoelem, Nfp, nface, nelem)
+  vmap⁺ = similar(elemtoelem, Nfp, nface, nelem)
 
   for e1 = 1:nelem, f1 = 1:nface
     e2 = elemtoelem[f1,e1]
@@ -1056,11 +1056,11 @@ function mappings(N, elemtoelem, elemtoface, elemtoordr)
     # TODO support different orientations
     @assert o2 == 1
 
-    vmapM[:,f1,e1] .= Np*(e1-1) .+ fmask[:,f1]
-    vmapP[:,f1,e1] .= Np*(e2-1) .+ fmask[:,f2]
+    vmap⁻[:,f1,e1] .= Np*(e1-1) .+ fmask[:,f1]
+    vmap⁺[:,f1,e1] .= Np*(e2-1) .+ fmask[:,f2]
   end
 
-  (vmapM, vmapP)
+  (vmap⁻, vmap⁺)
 end
 
 """

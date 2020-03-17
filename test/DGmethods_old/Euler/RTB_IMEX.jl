@@ -5,7 +5,6 @@ using CLIMA.Mesh.Grids
 using CLIMA.DGBalanceLawDiscretizations
 using CLIMA.DGBalanceLawDiscretizations.NumericalFluxes
 using CLIMA.MPIStateArrays
-using CLIMA.LowStorageRungeKuttaMethod
 using CLIMA.ODESolvers
 using CLIMA.GenericCallbacks
 using LinearAlgebra
@@ -14,7 +13,6 @@ using Logging, Printf, Dates
 using CLIMA.VTK
 using CLIMA.LinearSolvers
 using CLIMA.GeneralizedConjugateResidualSolver
-using CLIMA.AdditiveRungeKuttaMethod
 
 const γ_exact = 7 // 5 # FIXME: Remove this for some moist thermo approach
 
@@ -112,7 +110,7 @@ end
   end
 end
 
-@inline function source!(S, Q, aux, t)
+@inline function source!(S, Q, diffusive, aux, t)
   # Initialise the final block source term
   S .= -zero(eltype(Q))
 
@@ -238,11 +236,11 @@ end
   end
 end
 
-@inline function lin_source!(S, Q, aux, t)
+@inline function lin_source!(S, Q, diffusive, aux, t)
   S .= 0
-  lin_source_geopotential!(S, Q, aux, t)
+  lin_source_geopotential!(S, Q, diffusive, aux, t)
 end
-@inline function lin_source_geopotential!(S, Q, aux, t)
+@inline function lin_source_geopotential!(S, Q, diffusive, aux, t)
   @inbounds begin
     δρ = Q[_δρ]
     ∇ϕ = SVector(aux[_a_ϕ_x], aux[_a_ϕ_y], aux[_a_ϕ_z])
@@ -381,7 +379,7 @@ let
   ll == "ERROR" ? Logging.Error : Logging.Info
   logger_stream = MPI.Comm_rank(mpicomm) == 0 ? stderr : devnull
   global_logger(ConsoleLogger(logger_stream, loglevel))
-  
+
   polynomialorder = 4
   FT = Float64
 
@@ -393,12 +391,12 @@ let
     # Physical domain extents
     domain_start = (0, 0, 0)
     domain_end = (1000, 750, 1000)
-    
+
     # Stable explicit time step
     Δxyz = MVector(25, 25, 25)
     dt = min(Δxyz...) / soundspeed_air(300.0) / polynomialorder
     dt *= dim == 2 ? 40 : 20
-  
+
     output_time = 0.5
     output_steps = ceil(output_time / dt)
 
@@ -406,7 +404,7 @@ let
     Ls = MVector(domain_end .- domain_start)
     ratios = @. (Ls / Δxyz - 1) / polynomialorder
     Ne = ceil.(Int64, ratios)
-    
+
     brickrange = ntuple(d -> range(domain_start[d], length = Ne[d] + 1, stop = domain_end[d]), dim)
     periodicity = ntuple(d -> false, dim)
 
@@ -433,7 +431,7 @@ let
     @info @sprintf """     (Nex, Ney, Nez) = (%d, %d, %d)                  """ Ne...
     @info @sprintf """     dt         = %.2e                               """ dt
     @info @sprintf """ ----------------------------------------------------"""
-    
+
     engf_eng0 = run(mpicomm, ArrayType,
                     dim, brickrange, periodicity, polynomialorder,
                     timeend, FT, dt, output_steps)

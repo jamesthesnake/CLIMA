@@ -23,7 +23,6 @@ using CLIMA.Mesh.Grids
 using CLIMA.DGBalanceLawDiscretizations
 using CLIMA.DGBalanceLawDiscretizations.NumericalFluxes
 using CLIMA.MPIStateArrays
-using CLIMA.LowStorageRungeKuttaMethod
 using CLIMA.ODESolvers
 using CLIMA.GenericCallbacks
 using LinearAlgebra
@@ -68,7 +67,7 @@ const _a_ϕ, _a_ϕx, _a_ϕy, _a_ϕz, _a_x, _a_y, _a_z = 1:_nauxstate
   end
 end
 
-@inline function almost_no_source!(S, Q, aux, t)
+@inline function almost_no_source!(S, Q, diffusive, aux, t)
   @inbounds begin
     x,y,z = aux[_a_x], aux[_a_y], aux[_a_z]
     isentropicvortex!(S, t, x, y, z)
@@ -233,7 +232,7 @@ let
   ll == "ERROR" ? Logging.Error : Logging.Info
   logger_stream = MPI.Comm_rank(mpicomm) == 0 ? stderr : devnull
   global_logger(ConsoleLogger(logger_stream, loglevel))
-  
+
   timeend = 1
   numelem = (5, 5, 1)
 

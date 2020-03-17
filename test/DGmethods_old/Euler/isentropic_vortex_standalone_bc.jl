@@ -23,7 +23,6 @@ using CLIMA.Mesh.Grids
 using CLIMA.DGBalanceLawDiscretizations
 using CLIMA.DGBalanceLawDiscretizations.NumericalFluxes
 using CLIMA.MPIStateArrays
-using CLIMA.LowStorageRungeKuttaMethod
 using CLIMA.ODESolvers
 using CLIMA.GenericCallbacks
 using LinearAlgebra
@@ -221,7 +220,7 @@ let
   ll == "ERROR" ? Logging.Error : Logging.Info
   logger_stream = MPI.Comm_rank(mpicomm) == 0 ? stderr : devnull
   global_logger(ConsoleLogger(logger_stream, loglevel))
-  
+
   timeend = 1
   numelem = (5, 5, 1)
 
