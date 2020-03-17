@@ -412,6 +412,14 @@ function finish_ghost_send!(Q::MPIStateArray)
     @toc mpi_sendwait
 end
 
+function __testall!(requests)
+    done = false
+    while !done
+        done, _ = MPI.Testall!(requests)
+        yield()
+    end
+end
+
 function __Irecv!(Q)
     nnabr = length(Q.nabrtorank)
     transfer = get_transfer(Q.recv_buffer)
@@ -508,6 +516,48 @@ function transferrecvbuf!(
 end
 
 # }}}
+
+"""
+    ghost_exchange!(Q::MPIStateArray; dependencies=nothing)
+
+Asynchronous call to perform the exchange of ghost degrees-of-freedom.  The
+returned `KernelAbstractions.Event`s can be waited on to know when the ghost
+exchange is finished.  The first event indicates when the receives are finished
+and the second indicates when the sends are finished.
+"""
+function ghost_exchange!(Q::MPIStateArray; dependencies = nothing)
+    progress = () -> __yield(Q.mpicomm)
+    event = Event(__Irecv!, Q; dependencies = dependencies, progress = progress)
+    event =
+        Event(__testall!, Q.recvreq; dependencies = event, progress = progress)
+    event =
+        prepare_stage!(Q.recv_buffer; dependencies = event, progress = progress)
+    recv_event = transferrecvbuf!(
+        Q.data,
+        get_stage(Q.recv_buffer),
+        Q.vmaprecv;
+        dependencies = event,
+        progress = progress,
+    )
+
+    event = fillsendbuf!(
+        get_stage(Q.send_buffer),
+        Q.data,
+        Q.vmapsend;
+        dependencies = dependencies,
+        progress = progress,
+    )
+    event = prepare_transfer!(
+        Q.send_buffer;
+        dependencies = event,
+        progress = progress,
+    )
+    event = Event(__Isend!, Q; dependencies = event, progress = progress)
+    send_event =
+        Event(__testall!, Q.sendreq; dependencies = event, progress = progress)
+
+    return recv_event, send_event
+end
 
 # Integral based metrics
 function LinearAlgebra.norm(
