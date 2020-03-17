@@ -132,7 +132,6 @@ function main()
         nabrtovmaprecv,
         nabrtovmapsend,
         ArrayType(weights),
-        555,
     )
 
     B = MPIStateArray{Int64}(
@@ -149,7 +148,6 @@ function main()
         nabrtovmaprecv,
         nabrtovmapsend,
         ArrayType(weights),
-        666,
     )
 
     Q = Array(A.data)
