@@ -35,6 +35,16 @@ const imex_methods = [
 const mis_methods =
     [(MIS2, 2), (MIS3C, 2), (MIS4, 3), (MIS4a, 3), (TVDMISA, 2), (TVDMISB, 2)]
 
+const mrigark_methods = [
+    (MRIGARKERK33aSandu, 3)
+    (MRIGARKERK45aSandu, 4)
+]
+
+const fast_mrigark_methods = [
+    (LSRK54CarpenterKennedy, 4)
+    (LSRK144NiegemannDiehlBusch, 4)
+]
+
 @testset "1-rate ODE" begin
     function rhs!(dQ, Q, ::Nothing, time; increment)
         if increment
@@ -268,6 +278,81 @@ end
                 end
                 rates = log2.(errors[1:(end - 1)] ./ errors[2:end])
                 @test isapprox(rates[end], mis_expected_order; atol = 0.1)
+            end
+        end
+    end
+end
+
+#=
+Test problem (8.2) from Sandu (2019) for MRI-GARK Schemes
+    @article{Sandu2019,
+        title={A class of multirate infinitesimal gark methods},
+        author={Sandu, Adrian},
+        journal={SIAM Journal on Numerical Analysis},
+        volume={57},
+        number={5},
+        pages={2300--2327},
+        year={2019},
+        publisher={SIAM},
+        doi={10.1137/18M1205492}
+    }
+
+NOTE: This is the same as the next test but with `ω = 20` instead of `100`
+=#
+@testset "Explicit MRI GARK tests" begin
+    ω = 20
+    λf = -10
+    λs = -1
+    ξ = 1 // 10
+    α = 1
+    ηfs = ((1 - ξ) / α) * (λf - λs)
+    ηsf = -ξ * α * (λf - λs)
+    Ω = @SMatrix [
+        λf ηfs
+        ηsf λs
+    ]
+
+    function rhs_fast!(dQ, Q, param, t; increment)
+        @inbounds begin
+            increment || (dQ .= 0)
+            yf = Q[1]
+            ys = Q[2]
+            gf = (-3 + yf^2 - cos(ω * t)) / 2yf
+            gs = (-2 + ys^2 - cos(t)) / 2ys
+            dQ[1] += Ω[1, 1] * gf + Ω[1, 2] * gs - ω * sin(ω * t) / 2yf
+        end
+    end
+
+    function rhs_slow!(dQ, Q, param, t; increment)
+        @inbounds begin
+            increment || (dQ .= 0)
+            yf = Q[1]
+            ys = Q[2]
+            gf = (-3 + yf^2 - cos(ω * t)) / 2yf
+            gs = (-2 + ys^2 - cos(t)) / 2ys
+            dQ[2] += Ω[2, 1] * gf + Ω[2, 2] * gs - sin(t) / 2ys
+        end
+    end
+
+    exactsolution(t) = [sqrt(3 + cos(ω * t)); sqrt(2 + cos(t))]
+
+    @testset "MRI-GARK methods" begin
+        finaltime = 5π / 2
+        dts = [2.0^(-k) for k in 2:8]
+        error = similar(dts)
+        for (mri_method, mri_expected_order) in mrigark_methods
+            for (fast_method, fast_expected_order) in fast_mrigark_methods
+                for (n, dt) in enumerate(dts)
+                    Q = exactsolution(0)
+                    fastsolver = fast_method(rhs_fast!, Q; dt = dt / 10)
+                    solver = mri_method(rhs_slow!, fastsolver, Q, dt = dt)
+                    solve!(Q, solver; timeend = finaltime)
+                    error[n] = norm(Q - exactsolution(finaltime))
+                end
+
+                rate = log2.(error[1:(end - 1)] ./ error[2:end])
+                order = mri_expected_order
+                @test isapprox(rate[end], mri_expected_order; atol = 0.3)
             end
         end
     end

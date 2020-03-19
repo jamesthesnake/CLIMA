@@ -167,6 +167,57 @@ function dostep!(
 end
 
 """
+    dostep!(Q, lsrk::LowStorageRungeKutta2N, p::MRIParam, time::Real,
+            dt::Real)
+
+Use the 2N low storage Runge--Kutta method `lsrk` to step `Q` forward in time
+from the current time `time` to final time `time + dt`.
+
+If the optional parameter `slow_δ !== nothing` then `slow_rv_dQ * slow_δ` is
+added as an additionall ODE right-hand side source. If the optional parameter
+`slow_scaling !== nothing` then after the final stage update the scaling
+`slow_rv_dQ *= slow_scaling` is performed.
+"""
+function dostep!(
+    Q,
+    lsrk::LowStorageRungeKutta2N,
+    mrip::MRIParam,
+    time::Real,
+    dt::AbstractFloat,
+)
+    RKA, RKB, RKC = lsrk.RKA, lsrk.RKB, lsrk.RKC
+    rhs!, dQ = lsrk.rhs!, lsrk.dQ
+
+    rv_Q = realview(Q)
+    rv_dQ = realview(dQ)
+
+    groupsize = 256
+
+    for s in 1:length(RKA)
+        stage_time = time + RKC[s] * dt
+        rhs!(dQ, Q, mrip.p, stage_time, increment = true)
+
+        # update solution and scale RHS
+        τ = (stage_time - mrip.ts) / mrip.Δts
+        event = Event(device(Q))
+        event = lsrk_mri_update!(device(Q), groupsize)(
+            rv_dQ,
+            rv_Q,
+            RKA[s % length(RKA) + 1],
+            RKB[s],
+            τ,
+            dt,
+            mrip.γs,
+            mrip.Rs;
+            ndrange = length(rv_Q),
+            dependencies = (event,),
+        )
+        wait(device(Q), event)
+    end
+end
+
+
+"""
     LSRKEulerMethod(f, Q; dt, t0 = 0)
 
 This function returns a [`LowStorageRungeKutta2N`](@ref) time stepping object
