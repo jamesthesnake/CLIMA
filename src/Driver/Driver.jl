@@ -141,6 +141,10 @@ function parse_commandline()
         "--integration-testing"
         help = "enable integration testing"
         action = :store_true
+        "--group-id"
+        help = "Select the group identifier for the CFSites experiment"
+        arg_type = String
+        default = "site1"
     end
 
 

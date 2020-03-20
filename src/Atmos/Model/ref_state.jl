@@ -1,6 +1,7 @@
 ### Reference state
 using DocStringExtensions
-export NoReferenceState,
+export ReferenceState,
+    NoReferenceState,
     HydrostaticState,
     IsothermalProfile,
     LinearTemperatureProfile,
@@ -23,6 +24,7 @@ atmos_init_aux!(
     ::AtmosModel,
     aux::Vars,
     geom::LocalGeometry,
+    args...,
 ) = nothing
 
 """
@@ -53,6 +55,7 @@ function atmos_init_aux!(
     atmos::AtmosModel,
     aux::Vars,
     geom::LocalGeometry,
+    args...,
 ) where {P, F}
     T, p = m.temperatureprofile(atmos.orientation, aux)
     aux.ref_state.T = T

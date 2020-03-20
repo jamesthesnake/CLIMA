@@ -215,6 +215,7 @@ include("source.jl")
 include("boundaryconditions.jl")
 include("linear.jl")
 include("remainder.jl")
+include("cfsites_model.jl")
 include("courant.jl")
 
 """
@@ -381,11 +382,11 @@ function reverse_integral_set_aux!(m::AtmosModel, aux::Vars, integ::Vars)
 end
 
 # TODO: figure out a nice way to handle this
-function init_aux!(m::AtmosModel, aux::Vars, geom::LocalGeometry)
+function init_aux!(m::AtmosModel, aux::Vars, geom::LocalGeometry, args...)
     aux.coord = geom.coord
-    atmos_init_aux!(m.orientation, m, aux, geom)
-    atmos_init_aux!(m.ref_state, m, aux, geom)
-    atmos_init_aux!(m.turbulence, m, aux, geom)
+    atmos_init_aux!(m.orientation, m, aux, geom, args...)
+    atmos_init_aux!(m.ref_state, m, aux, geom, args...)
+    atmos_init_aux!(m.turbulence, m, aux, geom, args...)
 end
 
 """
