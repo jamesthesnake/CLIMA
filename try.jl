@@ -30,11 +30,11 @@ fast_mrigark_methods = [
     α12, α13, α23 = 1, 1, 1
 
     η12 = ((1 - ξ12) / α12) * (λ1 - λ2)
-    η13 = ((1 - ξ13) / α13) * (λ1 - λ3)
+    η13 = 0# ((1 - ξ13) / α13) * (λ1 - λ3)
     η23 = ((1 - ξ23) / α23) * (λ2 - λ3)
 
     η21 = ξ12 * α12 * (λ2 - λ1)
-    η31 = ξ13 * α13 * (λ3 - λ1)
+    η31 = 0# ξ13 * α13 * (λ3 - λ1)
     η32 = ξ23 * α23 * (λ3 - λ2)
 
     Ω = @SMatrix [
@@ -88,8 +88,8 @@ fast_mrigark_methods = [
         [sqrt(β1 + cos(ω1 * t)), sqrt(β2 + cos(ω2 * t)), sqrt(β3 + cos(ω3 * t))]
 
     @testset "MRI-GARK method" begin
-        finaltime = π / 2
-        dts = [2.0^(-k) for k in 2:7]
+        finaltime = 1 / 2
+        dts = [2.0^(-k) for k in 3:7]
         error = similar(dts)
         for (rate3_method, rate3_order) in mrigark_methods
             for (rate2_method, rate2_order) in mrigark_methods
