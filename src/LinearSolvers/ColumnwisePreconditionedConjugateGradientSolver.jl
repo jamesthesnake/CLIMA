@@ -11,42 +11,152 @@ using LazyArrays
 using StaticArrays
 using GPUifyLoops
 
-struct ColumnwisePreconditionedConjugateGradient{T, D} <: LS.AbstractIterativeLinearSolver
+struct ColumnwisePreconditionedConjugateGradient{AT, FT, U, IT} <: LS.AbstractIterativeLinearSolver
 
-  rtol::T
-  atol::T
-  max_iter::T
+  rtol::FT
+  atol::FT
 
-  r0::MArray{T}
-  z0::MArray{T}
-  p0::MArray{T}
+  r0::AT
+  z0::AT
+  p0::AT
 
-  r1::MArray{T}
-  z1::MArray{T}
-  p1::MArray{T}
-  Lp::MArray{T}
+  r1::AT
+  z1::AT
+  p1::AT
+  Lp::AT
 
-  dims::D
+  dims::U
 
-
-  function ColumnwisePreconditionedConjugateGradient(Q::AT; max_iter=size(Q)[3]*size(Q)[5],
-          rtol=eps(eltype(AT)), atol=eps(eltype(AT)), dims=:) where AT
-      # FIXME: Need to revisit this (assuming uniform vertical resolution in each column)
-      return new{eltype(Q), eltype(dims)}(rtol, atol, max_iter, dims)
-  end
+  max_iter::IT
 
 end
 
+# Define the outer constructor for the
+# ColumnwisePreconditionedConjugateGradient
+# struct
+"""
+function ColumnwisePreconditionedConjugateGradient(Q::AT; rtol = eps(eltype(Q)), atol = eps(eltype(Q)), dims = :) where AT
+
+# Description
+- Outer constructor for the ColumnwisePreconditionedConjugateGradient struct
+
+# Arguments
+- `Q`:(array). The kind of object that linearoperator! acts on.
+
+# Keyword Arguments
+- `rtol`: (float). relative tolerance
+- `atol`: (float). absolute tolerance
+- `dims`: (tuple or : ). the dimensions to compute norms over
+
+# Return
+- ColumnwisePreconditionedConjugateGradient struct
+"""
+function ColumnwisePreconditionedConjugateGradient(Q::AT; rtol = eps(eltype(Q)), atol = eps(eltype(Q)), max_iter = length(Q), dims = :) where AT
+    container = []
+
+
+    # allocate arrays
+    r0 = similar(Q)
+    z0 = similar(Q)
+    p0 = similar(Q)
+    r1 = similar(Q)
+    z1 = similar(Q)
+    p1 = similar(Q)
+    Lp = similar(Q)
+
+    # push to container
+    push!(container, rtol)
+    push!(container, atol)
+
+    push!(container, r0)
+    push!(container, z0)
+    push!(container, p0)
+
+    push!(container, r1)
+    push!(container, z1)
+    push!(container, p1)
+
+    push!(container, Lp)
+
+    push!(container, dims)
+
+    push!(container, max_iter)
+    # create struct instance
+    return ColumnwisePreconditionedConjugateGradient{typeof(Q), eltype(Q), typeof(dims), typeof(max_iter)}(container...)
+end
+
+
+"""
+LS.initialize!(linearoperator!, Q, Qrhs, solver::ColumnwisePreconditionedConjugateGradient, args...)
+
+# Description
+
+- This function initializes the iterative solver. It is called as part of the AbstractIterativeLinearSolver routine. SEE CODEREF for documentation on AbstractIterativeLinearSolver
+
+# Arguments
+
+- `linearoperator!`: (function). This applies the predefined linear operator on an array. Applies a linear operator to objecy "y" and overwrites object "z". linearoperator!(z,y)
+- `Q`: (array). This is an object that linearoperator! outputs
+- `Qrhs`: (array). This is an object that linearoperator! acts on
+- `solver`: (struct). This is a scruct for dispatch, in this case for ColumnwisePreconditionedConjugateGradient
+- `args...`: (arbitrary). This is optional arguments that can be passed into the function for flexibility.
+
+# Keyword Arguments
+
+- There are no keyword arguments
+
+# Return
+- `converged`: (bool). A boolean to say whether or not the iterative solver has converged.
+- `threshold`: (float). The value of the residual for the first timestep
+
+# Comment
+- This function does nothing for conjugate gradient
+
+"""
 function LS.initialize!(linearoperator!, Q, Qrhs,
                         solver::ColumnwisePreconditionedConjugateGradient,
                         args...)
-    # Initialize as 'not converged'
-    return false
+
+    return false, Inf
 end
 
+
+"""
+LS.doiteration!(linearoperator!, Q, Qrhs, solver::ColumnwisePreconditionedConjugateGradient, threshold, applyPC!, args...)
+
+# Description
+
+- This function enacts the iterative solver. It is called as part of the AbstractIterativeLinearSolver routine. SEE CODEREF for documentation on AbstractIterativeLinearSolver
+
+# Arguments
+
+- `linearoperator!`: (function). This applies the predefined linear operator on an array. Applies a linear operator to objecy "y" and overwrites object "z". linearoperator!(z,y)
+- `Q`: (array). This is an object that linearoperator outputs
+- `Qrhs`: (array). This is an object that linearoperator acts on
+- `solver`: (struct). This is a scruct for dispatch, in this case for ColumnwisePreconditionedConjugateGradient
+- `threshold`: (float). Either an absolute or relative tolerance
+- `applyPC!`: (function). Applies a preconditioner to objecy "y" and overwrites object "z". applyPC!(z,y)
+- `args...`: (arbitrary). This is optional arguments that can be passed into the function for flexibility.
+
+# Keyword Arguments
+
+- There are no keyword arguments
+
+# Return
+- `converged`: (bool). A boolean to say whether or not the iterative solver has converged.
+- `iteration`: (int). Iteration number for the iterative solver
+- `threshold`: (float). The value of the residual for the first timestep
+
+# Comment
+- This function does conjugate gradient
+
+"""
 function LS.doiteration!(linearoperator!, Q, Qrhs,
-                         solver::ColumnwisePreconditionedConjugateGradient{M},
-                         args...) where M
+                         solver::ColumnwisePreconditionedConjugateGradient,
+                         threshold, applyPC!, args...)
+
+
+    # unroll names for convenience
 
     rtol = solver.rtol
     atol = solver.atol
@@ -64,37 +174,43 @@ function LS.doiteration!(linearoperator!, Q, Qrhs,
     z1 = solver.z1
     p1 = solver.p1
 
+    Lp = solver.Lp
+
     # Smack residual by linear operator
     linearoperator!(r0, Q)
     r0 .= Qrhs - r0
     applyPC!(z0, r0)
-    p0 = copy(z0)
+    p0 .= z0
 
-    Lp = solver.Lp
-
-    absolute_residual = norm(r0, 2, false, dims=dims)
-    relative_residual = absolute_residual / norm(Qrhs, 2, false, dims=dims)
-
-    # TODO: Need to review termination criterion
-    converged = false
+    # TODO: FIX THIS
+    absolute_residual = maximum( sqrt.( sum(r0 .* r0, dims=dims) ) )
+    relative_residual = absolute_residual / maximum( sqrt.(sum(Qrhs .* Qrhs, dims=dims)) )
+    # TODO: FIX THIS
     if (absolute_residual <= atol) || (relative_residual <= rtol)
+        # wow! what a great guess
         converged = true
-        return (converged, absolute_residual)
+        return converged, 1, absolute_residual
     end
 
     for j in 1:max_iter
 
         linearoperator!(Lp, p0)
-        α = sum(r0 .* z0, dims=dims) ./ sum(p0 .* Lp, dims=dims)
+
+        α = sum(r0 .* z0, dims=dims) ./ sum(p0 .* Lp, dims = dims)
 
         # Update along preconditioned direction
         @. Q += α * p0
-        @. r1 = r0 - α * p0
 
-        # TODO: Probably need to perform MPI call for allreduce
-        if maximum(norm(r1, 2, false, dims=dims)) < atol
+        @. r1 = r0 - α * Lp
+
+        # TODO: FIX THIS
+        absolute_residual = maximum( sqrt.( sum(r1 .* r1, dims=dims) ) )
+        relative_residual = absolute_residual / maximum( sqrt.(sum(Qrhs .* Qrhs, dims=dims)) )
+        # TODO: FIX THIS
+        converged = false
+        if (absolute_residual <= atol) || (relative_residual <= rtol)
             converged = true
-            break
+            return converged, j, absolute_residual
         end
 
         applyPC!(z1, r1)
@@ -108,6 +224,10 @@ function LS.doiteration!(linearoperator!, Q, Qrhs,
 
     end
 
+    # TODO: FIX THIS
+    converged = true
+    return converged, max_iter, absolute_residual
 end
 
-end
+
+end #module
