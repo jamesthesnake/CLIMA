@@ -131,7 +131,7 @@ struct DriverConfiguration{FT}
 end
 
 function print_model_info(model)
-    @printf("---------------------------------------\n")
+    @printf("--------------------------------------------------\n")
     @info @sprintf("""AtmosModel Composition""")
     for key in fieldnames(typeof(model))
         @info @sprintf(
@@ -140,7 +140,7 @@ function print_model_info(model)
             string((getproperty(model, key)))
         )
     end
-    @printf("---------------------------------------\n")
+    @printf("--------------------------------------------------\n")
 end
 
 function AtmosLESConfiguration(

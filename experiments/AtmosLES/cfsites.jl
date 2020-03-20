@@ -14,9 +14,10 @@ using CLIMA.Atmos
 using CLIMA.ConfigTypes
 using CLIMA.GenericCallbacks
 using CLIMA.DGmethods.NumericalFluxes
-using CLIMA.ODESolvers
+using CLIMA.Diagnostics
 using CLIMA.Mesh.Filters
 using CLIMA.MoistThermodynamics
+using CLIMA.ODESolvers
 using CLIMA.PlanetParameters
 using CLIMA.VariableTemplates
 
@@ -173,6 +174,7 @@ function config_cfsites(FT, N, resolution, xmax, ymax, zmax)
         ref_state = GCMForcedState(),
         turbulence = SmagorinskyLilly{FT}(0.23),
         source = (Gravity(),),
+        moisture = EquilMoist{FT}(; maxiter = 5, tolerance = FT(0.1)),
         init_state = init_cfsites!,
         param_set = ParameterSet{FT}(),
     )
@@ -180,6 +182,12 @@ function config_cfsites(FT, N, resolution, xmax, ymax, zmax)
     imex_solver = CLIMA.DefaultSolverType()
     exp_solver =
         CLIMA.ExplicitSolverType(solver_method = LSRK144NiegemannDiehlBusch)
+    mrrk_solver = CLIMA.MultirateSolverType(
+        linear_model = AtmosAcousticGravityLinearModel,
+        slow_method = LSRK144NiegemannDiehlBusch,
+        fast_method = LSRK144NiegemannDiehlBusch,
+        timestep_ratio = 10,
+    )
 
     config = CLIMA.AtmosLESConfiguration(
         "CFSites Experiments",
@@ -189,10 +197,17 @@ function config_cfsites(FT, N, resolution, xmax, ymax, zmax)
         ymax,
         zmax,
         init_cfsites!,
-        solver_type = exp_solver,
+        solver_type = mrrk_solver,
         model = model,
     )
     return config
+end
+
+# Define the diagnostics configuration (Atmos-Default)
+function config_diagnostics(driver_config)
+    interval = 10000 # in time steps
+    dgngrp = setup_atmos_default_diagnostics(interval, driver_config.name)
+    return CLIMA.setup_diagnostics([dgngrp])
 end
 
 function main()
@@ -203,18 +218,18 @@ function main()
     # DG polynomial order
     N = 4
     # Domain resolution and size
-    Δh = FT(50)
-    Δv = FT(50)
+    Δh = FT(75)
+    Δv = FT(20)
     resolution = (Δh, Δh, Δv)
     # Domain extents
-    xmax = FT(2000)
-    ymax = FT(2000)
-    zmax = FT(2000)
+    xmax = FT(2500)
+    ymax = FT(2500)
+    zmax = FT(4000)
     # Simulation time
     t0 = FT(0)
     timeend = FT(3600 * 6)
     # Courant number
-    CFL = FT(0.25)
+    CFL = FT(7)
 
     # Execute the get_gcm_info function
     (z, ta, hus, ua, va, pfull) = get_gcm_info(groupid)
@@ -243,6 +258,7 @@ function main()
         init_on_cpu = true,
         Courant_number = CFL,
     )
+    dgn_config = config_diagnostics(driver_config)
 
     # User defined filter (TMAR positivity preserving filter)
     cbtmarfilter = GenericCallbacks.EveryXSimulationSteps(1) do (init = false)
@@ -253,6 +269,7 @@ function main()
     # Invoke solver (calls solve! function for time-integrator)
     result = CLIMA.invoke!(
         solver_config;
+        diagnostics_config = dgn_config,
         user_callbacks = (cbtmarfilter,),
         check_euclidean_distance = true,
     )
