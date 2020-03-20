@@ -125,6 +125,7 @@ function solve!(
 end
 # }}}
 
+include("MRIGARK_explicit.jl")
 include("LowStorageRungeKuttaMethod.jl")
 include("StrongStabilityPreservingRungeKuttaMethod.jl")
 include("AdditiveRungeKuttaMethod.jl")
