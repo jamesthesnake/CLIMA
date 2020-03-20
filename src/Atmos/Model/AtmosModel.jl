@@ -11,7 +11,6 @@ using ..MoistThermodynamics
 using ..PlanetParameters
 import ..MoistThermodynamics: internal_energy
 using ..SubgridScaleParameters
-using GPUifyLoops
 using ..MPIStateArrays: MPIStateArray
 using ..Mesh.Grids: VerticalDirection, HorizontalDirection, min_node_distance
 
@@ -384,10 +383,10 @@ end
 
 # TODO: figure out a nice way to handle this
 function init_aux!(m::AtmosModel, aux::Vars, geom::LocalGeometry, args...)
-  aux.coord = geom.coord
-  atmos_init_aux!(m.orientation, m, aux, geom, args...)
-  atmos_init_aux!(m.ref_state, m, aux, geom, args...)
-  atmos_init_aux!(m.turbulence, m, aux, geom, args...)
+    aux.coord = geom.coord
+    atmos_init_aux!(m.orientation, m, aux, geom, args...)
+    atmos_init_aux!(m.ref_state, m, aux, geom, args...)
+    atmos_init_aux!(m.turbulence, m, aux, geom, args...)
 end
 
 """

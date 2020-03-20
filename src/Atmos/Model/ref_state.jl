@@ -24,7 +24,7 @@ atmos_init_aux!(
     ::AtmosModel,
     aux::Vars,
     geom::LocalGeometry,
-    args...
+    args...,
 ) = nothing
 
 """
@@ -55,7 +55,7 @@ function atmos_init_aux!(
     atmos::AtmosModel,
     aux::Vars,
     geom::LocalGeometry,
-    args...
+    args...,
 ) where {P, F}
     T, p = m.temperatureprofile(atmos.orientation, aux)
     aux.ref_state.T = T
