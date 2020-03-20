@@ -95,10 +95,24 @@ groupid = parsed_args["group-id"]
 
 # Define the get_gcm_info function
 function get_gcm_info(groupid)
-    @printf("---------------------------------\n")
-    @printf("Getting information from GCM data\n")
+
+    @printf("--------------------------------------------------\n")
+    @info @sprintf("""
+       ____ _     ___ __  __    _                                  
+      / ___| |   |_ _|  \\/  |  / \\                                 
+     | |   | |    | || |\\/| | / _ \\                                
+     | |___| |___ | || |  | |/ ___ \\                               
+      \\____|_____|___|_| _|_/_/___\\_\\_  __       _     _____ ____  
+     | | | | __ _  __| |/ ___| ____|  \\/  |     | |   | ____/ ___| 
+     | |_| |/ _` |/ _` | |  _|  _| | |\\/| |_____| |   |  _| \\___ \\ 
+     |  _  | (_| | (_| | |_| | |___| |  | |_____| |___| |___ ___) |
+     |_| |_|\\__,_|\\__,_|\\____|_____|_|  |_|     |_____|_____|____/ 
+     """)
+
+
+    @printf("\n")
     @printf("CFSite experiment site ID = %s\n", groupid)
-    @printf("---------------------------------\n")
+    @printf("--------------------------------------------------\n")
     filename = "/Users/asridhar/research/codes/CLIMA/datasets/HadGEM2-A_amip.2004-2008.07.nc"
     req_varnames = ("zg", "ta", "hus", "ua", "va", "pfull")
     # Load NETCDF dataset (HadGEM information)
@@ -119,7 +133,7 @@ function get_gcm_info(groupid)
         # Store key variables
     end
     @printf("Complete\n")
-    @printf("---------------------------------\n")
+    @printf("--------------------------------------------------\n")
     @printf("Group data storage complete\n")
     return (zg ./ grav, ta, hus, ua, va, pfull)
 end
