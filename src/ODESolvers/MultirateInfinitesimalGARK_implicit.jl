@@ -1,32 +1,6 @@
 export MRIGARKImplicit
 
 """
-    MRIParam(p, γs, Rs, ts, Δts)
-
-Construct a type for passing the data around for the `MRIGARKExplicit` explicit
-time stepper to follow on methods. `p` is the original user defined ODE
-parameters, `γs` and `Rs` are the MRI parameters and stage values, respectively.
-`ts` and `Δts` are the stage time and stage time step.
-"""
-struct MRIParam{P, T, AT, N, M}
-    p::P
-    γs::NTuple{M, SArray{NTuple{1, N}, T, 1, N}}
-    Rs::NTuple{N, AT}
-    ts::T
-    Δts::T
-    function MRIParam(
-        p::P,
-        γs::NTuple{M},
-        Rs::NTuple{N, AT},
-        ts,
-        Δts,
-    ) where {P, M, N, AT}
-        T = eltype(γs[1])
-        new{P, T, AT, N, M}(p, γs, Rs, ts, Δts)
-    end
-end
-
-"""
 TODO: Document
 """
 mutable struct MRIGARKImplicit{T, RT, AT, LT, Nstages, NΓ, FS, Nstages_sq} <:
@@ -198,19 +172,47 @@ function dostep!(
     rv_Qhat = realview(Qhat)
 
     ts = time
-    #FIXME: Need to sketch out how the linear solver needs to be applied.
-    #
     for s in 1:Nstages
         # Stage dt
         dts = Δc[s] * dt
+        stagetime = ts + dts
 
+        p = param isa MRIParam ? param.p : param
         slowrhs!(Rs[s], Qs[s], param, ts, increment = false)
 
-        γs = ntuple(k -> ntuple(j -> Γs[k][s, j], s), NΓ)
-        mriparam = MRIParam(param, γs, Rs[1:s], ts, dts)
-        solve!(Q, mrigark.fastsolver, mriparam; timeend = ts + dts)
+        if param isa MRIParam
+            # fraction of the step slower stage increment we are on
+            τ = (ts - param.ts) / param.Δts
+            event = Event(device(Q))
+            event = mri_update_rate!(device(Q), groupsize)(
+                realview(Rs[s]),
+                τ,
+                param.γs,
+                param.Rs;
+                ndrange = length(realview(Rs[s])),
+                dependencies = (event,),
+            )
+            wait(device(Q), event)
+        end
 
+        # fast solver
+        γs = ntuple(k -> ntuple(j -> Γs[k][s, j], s), NΓ)
+        mriparam = MRIParam(param, γs, realview.(Rs[1:s]), ts, dts)
+        solve!(Q, mrigark.fastsolver, mriparam; timeend = stagetime)
+
+        # this is a mess. need to figure out what the hell is actually going on
+        # FIXME: DO WE EVEN NEED TO DO THIS?
+        Γ0, = Γs
+        α = dt * Γ0[s, s]
+        linearoperator! = function (LQ, Q)
+            slowrhs!(LQ, Q, p, stagetime; increment = false)
+            @. LQ = Q - α * LQ
+        end
+        # slow stage continue
+        linearsolve!(implicitoperator!, linearsolver, Qtt, Qhat, p, stagetime)
+        slowrhs!(Rstages[s], Qstages[s], p, stagetime, increment = false)
         # update time
         ts += dts
     end
+    # Need to compose solution together?!
 end
