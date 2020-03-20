@@ -19,9 +19,9 @@ fast_mrigark_methods = [
 ]
 
 @testset "3-rate ODE" begin
-    ω1, ω2, ω3 = 400, 20, 1
+    ω1, ω2, ω3 =  100,  10,  1
     λ1, λ2, λ3 = -100, -10, -1
-    β1, β2, β3 = 2, 3, 4
+    β1, β2, β3 = 4, 3, 2
 
     ξ12 = λ2 / λ1
     ξ13 = λ3 / λ1
@@ -89,14 +89,14 @@ fast_mrigark_methods = [
 
     @testset "MRI-GARK method" begin
         finaltime = 1 / 2
-        dts = [2.0^(-k) for k in 3:7]
+        dts = [2.0^(-k) for k in 1:3]
         error = similar(dts)
         for (rate3_method, rate3_order) in mrigark_methods
             for (rate2_method, rate2_order) in mrigark_methods
                 for (rate1_method, rate1_order) in fast_mrigark_methods
                     for (n, dt) in enumerate(dts)
                         Q = exactsolution(0)
-                        fastsolver = rate1_method(rhs1!, Q; dt = dt / ω3)
+                        fastsolver = rate1_method(rhs1!, Q; dt = dt / (ω1 * ω2))
                         midsolver =
                             rate2_method(rhs2!, fastsolver, Q, dt = dt / ω2)
                         slowsolver = rate3_method(rhs3!, midsolver, Q, dt = dt)
