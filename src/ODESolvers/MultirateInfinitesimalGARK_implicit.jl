@@ -15,8 +15,6 @@ mutable struct MRIGARKImplicit{T, RT, AT, LT, Nstages, NΓ, FS, Nstages_sq} <:
     implicitoperator!
     "linear solver"
     linearsolver::LT
-    "Storage for solution during the `MRIGARKImplicit` update"
-    Qstages::NTuple{Nstages, AT}
     "Storage for RHS during the `MRIGARKImplicit` update"
     Rstages::NTuple{Nstages, AT}
     "Storage for the linear solver rhs vector"
@@ -60,7 +58,6 @@ mutable struct MRIGARKImplicit{T, RT, AT, LT, Nstages, NΓ, FS, Nstages_sq} <:
         Δc = RT.(Δc)
 
         # create storage for the stage values
-        Qstages = (Q, ntuple(i -> similar(Q), Nstages - 1)...)
         Rstages = ntuple(i -> similar(Q), Nstages)
         Qhat = similar(Q)
 
@@ -92,7 +89,6 @@ mutable struct MRIGARKImplicit{T, RT, AT, LT, Nstages, NΓ, FS, Nstages_sq} <:
             slowrhs!,
             implicitoperator!,
             linearsolver,
-            Qstages,
             Rstages,
             Qhat,
             Γs,
@@ -114,7 +110,7 @@ function MRIGARKIRK21aSandu(slowrhs!, linearsolver, fastsolver, Q; dt, t0 = 0)
     #! format: off
     Γ0 = [ 1 // 1   0 // 1
           -1 // 2   1 // 2
-           0 // 1   0 // 1 ]
+           0 // 1   0 // 1]
     γ̂0 = [-1 // 2   1 // 2]
     #! format: on
     MRIGARKImplicit(slowrhs!, linearsolver, fastsolver, (Γ0,), (γ̂0,), Q, dt, t0)
@@ -154,7 +150,6 @@ function dostep!(
     fast = mrigark.fastsolver
 
     implicitoperator!, linearsolver = mrigark.implicitoperator!, mrigark.linearsolver
-    Qs = mrigark.Qstages
     Rs = mrigark.Rstages
     Δc = mrigark.Δc
     Qhat = mrigark.Qhat
@@ -167,52 +162,53 @@ function dostep!(
     NΓ = length(Γs)
 
     rv_Q = realview(Q)
-    rv_Qstages = realview.(Qs)
     rv_Rstages = realview.(Rs)
     rv_Qhat = realview(Qhat)
 
     ts = time
-    for s in 1:Nstages
+    for s in 1:div(Nstages, 2)
         # Stage dt
-        dts = Δc[s] * dt
+        dts = Δc[2s-1] * dt
         stagetime = ts + dts
 
-        p = param isa MRIParam ? param.p : param
-        slowrhs!(Rs[s], Qs[s], param, ts, increment = false)
-
-        if param isa MRIParam
-            # fraction of the step slower stage increment we are on
-            τ = (ts - param.ts) / param.Δts
-            event = Event(device(Q))
-            event = mri_update_rate!(device(Q), groupsize)(
-                realview(Rs[s]),
-                τ,
-                param.γs,
-                param.Rs;
-                ndrange = length(realview(Rs[s])),
-                dependencies = (event,),
-            )
-            wait(device(Q), event)
-        end
+        slowrhs!(Rs[2s-1], Q, param, ts, increment = false)
 
         # fast solver
-        γs = ntuple(k -> ntuple(j -> Γs[k][s, j], s), NΓ)
-        mriparam = MRIParam(param, γs, realview.(Rs[1:s]), ts, dts)
+        γs = ntuple(k -> ntuple(j -> Γs[k][2s-1, j], 2s-1), NΓ)
+        mriparam = MRIParam(param, γs, realview.(Rs[1:2s-1]), ts, dts)
         solve!(Q, mrigark.fastsolver, mriparam; timeend = stagetime)
 
         # this is a mess. need to figure out what the hell is actually going on
         # FIXME: DO WE EVEN NEED TO DO THIS?
         Γ0, = Γs
-        α = dt * Γ0[s, s]
+        α = dt * Γ0[2s, s+1]
         linearoperator! = function (LQ, Q)
             slowrhs!(LQ, Q, p, stagetime; increment = false)
             @. LQ = Q - α * LQ
         end
         # slow stage continue
-        linearsolve!(implicitoperator!, linearsolver, Qtt, Qhat, p, stagetime)
-        slowrhs!(Rstages[s], Qstages[s], p, stagetime, increment = false)
+        #TODO: Qhat = Q - ∑_k Γ_{sk} Rs[k]
+        # (Q - α * LQ) = Qhat
+        linearsolve!(implicitoperator!, linearsolver, Q, Qhat, p, stagetime)
+
         # update time
         ts += dts
     end
     # Need to compose solution together?!
+end
+
+@kernel function mri_create_Qhat!(Qhat, Q, γs, Rs)
+    i = @index(Global, Linear)
+    @inbounds begin
+        NΓ = length(γs)
+        Ns = length(γs[1])
+        qhat = Q[i]
+
+        for s in 1:Ns
+            ri = Rs[s][i]
+            sc = γs[1][s]
+            qhat -= sc * ri
+        end
+        Qhat[i] = qhat
+    end
 end
