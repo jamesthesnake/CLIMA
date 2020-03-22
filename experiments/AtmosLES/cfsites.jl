@@ -42,7 +42,6 @@ DOI = {10.5194/gmd-10-359-2017}
 
 const seed = MersenneTwister(0)
 
-
 struct GCMRelaxation{FT} <: Source
     "Relaxation timescale `[s]`"
     τ_relax::FT
@@ -76,29 +75,17 @@ end
 # Additional utility function to allow group-id to be read in 
 # from a command line argument. If no argument is specified 
 # site1 is read by default. 
-function parse_groupid()
-    exc_handler =
-        isinteractive() ? ArgParse.debug_handler : ArgParse.default_handler
-    s = ArgParseSettings(exc_handler = exc_handler)
-    @add_arg_table! s begin
-        "--group-id"
-        help = "Set up the GroupID for the CFSite"
-        # If no argument is passed choose site1
-        default = "site1"
-    end
-    return parse_args(s)
-end
-
 # Call the argument parser and store the command-line 
 # value into the groupid variable 
-parsed_args = parse_groupid()
+parsed_args = parse_commandline()
 groupid = parsed_args["group-id"]
 
 # Define the get_gcm_info function
 function get_gcm_info(groupid)
 
     @printf("--------------------------------------------------\n")
-    @info @sprintf("""
+    @info @sprintf(""" \n
+
        ____ _     ___ __  __    _                                  
       / ___| |   |_ _|  \\/  |  / \\                                 
      | |   | |    | || |\\/| | / _ \\                                
@@ -108,6 +95,7 @@ function get_gcm_info(groupid)
      | |_| |/ _` |/ _` | |  _|  _| | |\\/| |_____| |   |  _| \\___ \\ 
      |  _  | (_| | (_| | |_| | |___| |  | |_____| |___| |___ ___) |
      |_| |_|\\__,_|\\__,_|\\____|_____|_|  |_|     |_____|_____|____/ 
+
      """)
 
 
@@ -136,7 +124,7 @@ function get_gcm_info(groupid)
     @printf("Complete\n")
     @printf("--------------------------------------------------\n")
     @printf("Group data storage complete\n")
-    return (zg ./ grav, ta, hus, ua, va, pfull)
+    return (zg, ta, hus, ua, va, pfull)
 end
 
 # Initialise the CFSite experiment :D! 
@@ -211,10 +199,11 @@ function config_diagnostics(driver_config)
 end
 
 function main()
+
     CLIMA.init()
 
     # Working precision
-    FT = Float64
+    FT = Float32
     # DG polynomial order
     N = 4
     # Domain resolution and size

@@ -27,6 +27,9 @@ using ..TicToc
 using ..VariableTemplates
 using ..VTK
 
+export parse_commandline
+export CLIMA_Settings
+
 # Note that the initial values specified here are overwritten by the
 # command line argument defaults in `parse_commandline()`.
 Base.@kwdef mutable struct CLIMA_Settings
@@ -44,6 +47,7 @@ Base.@kwdef mutable struct CLIMA_Settings
     output_dir::String = "output"
     integration_testing::Bool = false
     array_type
+    groupid::String = "site1"
 end
 
 const Settings = CLIMA_Settings(array_type = Array)
@@ -141,6 +145,10 @@ function parse_commandline()
         "--integration-testing"
         help = "enable integration testing"
         action = :store_true
+        "--group-id"
+        help = "Select the group identifier for the CFSites experiment"
+        arg_type = String
+        default = "site1"
     end
 
 
@@ -181,6 +189,7 @@ function init(; disable_gpu = false)
             parsed_args["monitor-courant-interval"]
         Settings.integration_testing = parsed_args["integration-testing"]
         Settings.log_level = uppercase(parsed_args["log-level"])
+        Settings.groupid = parsed_args["group-id"]
     catch
         Settings.disable_gpu = disable_gpu
     end
