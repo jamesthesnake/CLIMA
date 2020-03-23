@@ -178,8 +178,6 @@ function dostep!(
         mriparam = MRIParam(param, γs, realview.(Rs[1:2s-1]), ts, dts)
         solve!(Q, mrigark.fastsolver, mriparam; timeend = stagetime)
 
-        # this is a mess. need to figure out what the hell is actually going on
-        # FIXME: DO WE EVEN NEED TO DO THIS?
         Γ0, = Γs
         α = dt * Γ0[2s, s+1]
         linearoperator! = function (LQ, Q)
@@ -187,14 +185,14 @@ function dostep!(
             @. LQ = Q - α * LQ
         end
         # slow stage continue
-        #TODO: Qhat = Q - ∑_k Γ_{sk} Rs[k]
+        # Qhat = Q - ∑_k Γ_{sk} Rs[k]
+        mri_create_Qhat!(Qhat, Q, γs, Rs)
         # (Q - α * LQ) = Qhat
         linearsolve!(implicitoperator!, linearsolver, Q, Qhat, p, stagetime)
 
         # update time
         ts += dts
     end
-    # Need to compose solution together?!
 end
 
 @kernel function mri_create_Qhat!(Qhat, Q, γs, Rs)
