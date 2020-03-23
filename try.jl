@@ -19,22 +19,22 @@ fast_mrigark_methods = [
 ]
 
 @testset "3-rate ODE" begin
-    ω1, ω2, ω3 = 400, 20, 1
+    ω1, ω2, ω3 = 100, 10, 1
     λ1, λ2, λ3 = -100, -10, -1
-    β1, β2, β3 = 2, 3, 4
+    β1, β2, β3 = 2, 2, 2
 
-    ξ12 = λ2 / λ1
-    ξ13 = λ3 / λ1
-    ξ23 = λ3 / λ2
+    ξ12 = λ2 / (λ1 + λ2)
+    ξ13 = λ3 / (λ1 + λ3)
+    ξ23 = λ3 / (λ2 + λ3)
 
     α12, α13, α23 = 1, 1, 1
 
     η12 = ((1 - ξ12) / α12) * (λ1 - λ2)
-    η13 = ((1 - ξ13) / α13) * (λ1 - λ3)
+    η13 = 0#((1 - ξ13) / α13) * (λ1 - λ3)
     η23 = ((1 - ξ23) / α23) * (λ2 - λ3)
 
     η21 = ξ12 * α12 * (λ2 - λ1)
-    η31 = ξ13 * α13 * (λ3 - λ1)
+    η31 = 0#ξ13 * α13 * (λ3 - λ1)
     η32 = ξ23 * α23 * (λ3 - λ2)
 
     Ω = @SMatrix [
@@ -83,23 +83,32 @@ fast_mrigark_methods = [
         rhs1!(dQ, Q, param, t; increment = increment)
         rhs2!(dQ, Q, param, t; increment = true)
     end
+    function rhs123!(dQ, Q, param, t; increment)
+        rhs1!(dQ, Q, param, t; increment = increment)
+        rhs2!(dQ, Q, param, t; increment = true)
+        rhs3!(dQ, Q, param, t; increment = true)
+    end
+    function rhs_null!(dQ, Q, param, t; increment)
+        increment || (dQ .= 0)
+    end
 
     exactsolution(t) =
         [sqrt(β1 + cos(ω1 * t)), sqrt(β2 + cos(ω2 * t)), sqrt(β3 + cos(ω3 * t))]
 
     @testset "MRI-GARK method" begin
-        finaltime = π / 2
-        dts = [2.0^(-k) for k in 2:7]
+        finaltime = 1 / 2
+        dts = [2.0^(-k) for k in 1:6]
         error = similar(dts)
         for (rate3_method, rate3_order) in mrigark_methods
             for (rate2_method, rate2_order) in mrigark_methods
                 for (rate1_method, rate1_order) in fast_mrigark_methods
                     for (n, dt) in enumerate(dts)
                         Q = exactsolution(0)
-                        fastsolver = rate1_method(rhs1!, Q; dt = dt / ω3)
+                        fastsolver = rate1_method(rhs_null!, Q; dt = dt)
                         midsolver =
-                            rate2_method(rhs2!, fastsolver, Q, dt = dt / ω2)
-                        slowsolver = rate3_method(rhs3!, midsolver, Q, dt = dt)
+                            rate2_method(rhs_null!, fastsolver, Q, dt = dt)
+                        slowsolver =
+                            rate3_method(rhs123!, fastsolver, Q, dt = dt / ω3)
                         solve!(Q, slowsolver; timeend = finaltime)
                         error[n] = norm(Q - exactsolution(finaltime))
                     end

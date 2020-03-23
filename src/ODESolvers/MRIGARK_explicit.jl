@@ -290,6 +290,7 @@ end
             end
             dqi += sc * ri
         end
+
         dQ[i] = dqi
     end
 end
